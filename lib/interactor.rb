@@ -36,6 +36,9 @@ module Interactor
     #           Interactor::Context object. An existing Interactor::Context may
     #           also be given. (default: {})
     #
+    # block   - A given block to get access to context or other resources
+    #           during interactor's execution
+    #
     # Examples
     #
     #   MyInteractor.call(foo: "bar")
@@ -44,10 +47,13 @@ module Interactor
     #   MyInteractor.call
     #   # => #<Interactor::Context>
     #
+    #   MyInteractor.call(foo: "bar") { |context| context.foo = "baz" }
+    #   # => #<Interactor::Context foo="baz">
+    #
     # Returns the resulting Interactor::Context after manipulation by the
     #   interactor.
-    def call(context = {})
-      new(context).tap(&:run).context
+    def call(context = {}, &block)
+      new(context, &block).tap(&:run).context
     end
 
     # Public: Invoke an Interactor. The "call!" method behaves identically to
@@ -58,10 +64,16 @@ module Interactor
     #           Interactor::Context object. An existing Interactor::Context may
     #           also be given. (default: {})
     #
+    # block   - A given block to get access to context or other resources
+    #           during interactor's execution
+    #
     # Examples
     #
     #   MyInteractor.call!(foo: "bar")
     #   # => #<Interactor::Context foo="bar">
+    #
+    #   MyInteractor.call!(foo: "bar") { |context| context.foo = "baz" }
+    #   # => #<Interactor::Context foo="baz">
     #
     #   MyInteractor.call!
     #   # => #<Interactor::Context>
@@ -72,8 +84,8 @@ module Interactor
     # Returns the resulting Interactor::Context after manipulation by the
     #   interactor.
     # Raises Interactor::Failure if the context is failed.
-    def call!(context = {})
-      new(context).tap(&:run!).context
+    def call!(context = {}, &block)
+      new(context, &block).tap(&:run!).context
     end
   end
 
@@ -83,6 +95,9 @@ module Interactor
   #           interactor's context. An existing Interactor::Context may also be
   #           given. (default: {})
   #
+  # block   - A given block to get access to context or other resources
+  #           during interactor's execution
+  #
   # Examples
   #
   #   MyInteractor.new(foo: "bar")
@@ -90,8 +105,12 @@ module Interactor
   #
   #   MyInteractor.new
   #   # => #<MyInteractor @context=#<Interactor::Context>>
-  def initialize(context = {})
+  #
+  #   MyInteractor.new(foo: "bar") { |context| context.foo = "baz" }
+  #   # => #<MyInteractor @context=#<Interactor::Context foo="baz"> @block=#<Proc:0x00000101684668@/path/to/block:111>>
+  def initialize(context = {}, &block)
     @context = Context.build(context)
+    @block = block
   end
 
   # Internal: Invoke an interactor instance along with all defined hooks. The
@@ -128,6 +147,11 @@ module Interactor
   #   interactor.context
   #   # => #<Interactor::Context foo="bar">
   #
+  #   interactor = MyInteractor.new(foo: "bar") { |context| context.foo = "baz" }
+  #   interactor.run!
+  #   interactor.context
+  #   # => #<Interactor::Context foo="baz">
+  #
   # After successful invocation of the interactor, the instance is tracked
   # within the context. If the context is failed or any error is raised, the
   # context is rolled back.
@@ -140,7 +164,7 @@ module Interactor
   # Raises Interactor::Failure if the context is failed.
   def run!
     with_hooks do
-      call
+      call(&@block)
       context.called!(self)
     end
   rescue

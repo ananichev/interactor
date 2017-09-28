@@ -1,5 +1,13 @@
 shared_examples :lint do
-  let(:interactor) { Class.new.send(:include, described_class) }
+  let(:interactor) do
+    interactor = Class.new.send(:include, described_class)
+    interactor.class_eval do
+      def call
+        yield(context) if block_given?
+      end
+    end
+    interactor
+  end
 
   describe ".call" do
     let(:context) { double(:context) }
@@ -94,6 +102,19 @@ shared_examples :lint do
       expect(instance).to receive(:call).once.with(no_args)
 
       instance.run!
+    end
+
+    context "with block" do
+      let(:context) { double(:context) }
+      before { expect(Interactor::Context).to receive(:build) { context } }
+
+      let(:instance) { interactor.new { |_| } }
+
+      it "calls successfully" do
+        expect(instance).to receive(:call).once.with(no_args).and_yield(context)
+        expect(context).to receive(:called!).once.with(instance)
+        instance.run!
+      end
     end
 
     it "raises failure" do

@@ -1738,4 +1738,23 @@ describe "Integration" do
       }.to raise_error("foo")
     end
   end
+
+  context "when a block is passed" do
+    let(:interactor) {
+      build_interactor do
+        def call
+          context.steps << :call
+          yield(context)
+        end
+      end
+    }
+
+    it "calls successfully" do
+      expect {
+        interactor.call(context) { |context| context.steps << :block }
+      }.to change {
+        context.steps
+      }.from([]).to([:call, :block])
+    end
+  end
 end
